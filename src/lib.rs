@@ -1,55 +1,38 @@
-extern crate js_sys;
-extern crate wasm_bindgen;
-extern crate web_sys;
-
 mod dictionary;
 mod grid;
 mod index;
 mod solver;
 
-use self::js_sys::Array;
+// use napi::bindgen_prelude::*;
+use napi_derive::napi;
 use crate::dictionary::Dictionary;
 extern crate console_error_panic_hook;
 
-use wasm_bindgen::prelude::*;
-
-#[wasm_bindgen]
+#[napi]
 pub struct Solver {
     dict: Dictionary,
 }
 
-#[wasm_bindgen]
+#[napi]
 impl Solver {
-    pub fn new(words_arr: Array) -> Solver {
-        console_error_panic_hook::set_once();
 
-        let words: Vec<String> = words_arr.iter().map(|d| d.as_string().unwrap()).collect();
+    #[napi(constructor)]
+    pub fn new(words: Vec<String>) -> Solver {
         let dict = Dictionary::from_vec(words);
-
         Solver { dict }
     }
 
-    pub fn solve(&self, spec_arr: Array) -> JsValue {
+    #[napi]
+    pub fn solve(&self, spec_arr: Vec<Vec<u32>>) -> Option<Vec<String>> {
         let spec: Vec<Vec<usize>> = spec_arr
-            .iter()
-            .map(|a| {
-                let ar: Array = a.into();
-
-                ar.iter().map(|v| v.as_f64().unwrap() as usize).collect()
-            })
-            .collect();
+        .into_iter()
+        .map(|row: Vec<u32>| row.into_iter().map(|n| n as usize).collect())
+        .collect();
 
         let grid = grid::Grid::new(spec);
 
         let result = solver::solve(&grid, &self.dict);
 
-        if let Some(r) = result {
-            let v: Vec<JsValue> = r.iter().map(|c| c.to_string().into()).collect();
-            let a: Array = v.iter().collect();
-
-            a.into()
-        } else {
-            JsValue::NULL
-        }
+        result.map(|r| r.iter().map(|c| c.to_string()).collect())
     }
 }

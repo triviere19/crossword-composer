@@ -1,67 +1,87 @@
-[Crossword Composer](https://crossword.paulbutler.org)
-====================
+# `@crossword-composer-ts/core`
 
-![Screenshot of Crossword Composer](images/screenshot.png)
+![https://github.com/napi-rs/package-template/actions](https://github.com/napi-rs/package-template/workflows/CI/badge.svg)
 
-Crossword Composer is a browser-based tool for making crossword puzzles. This codebase consists of two main pieces:
+> Template project for writing node packages with napi-rs.
 
-- A word puzzle auto-filler (Rust), which finds a set of words that conform to a set of shared-letter constraints.
-- A browser-based UI (JavaScript / Svelte), which allows interactive puzzle creation.
+# Usage
 
-Auto-filler
------------
+1. Click **Use this template**.
+2. **Clone** your project.
+3. Run `yarn install` to install dependencies.
+4. Run `yarn napi rename -n [@your-scope/package-name] -b [binary-name]` command under the project folder to rename your package.
 
-The auto-filler is written in Rust, and could be used as a standalone library. The auto-filler itself is not aware of the structure of crossword puzzles. It is more akin to a [SAT solver](https://en.wikipedia.org/wiki/Boolean_satisfiability_problem) which takes a problem distilled down to its most basic representation: a list of constraints to be satisfied.
+## Install this test package
 
-The constraints are provided as a list of lists of numbers. These numbers are identifiers of *slots*: individual letter assignments that the filler must make. Each list of slot identifiers is a *word constraint*: it indicates that the sequence of letters assigned to the slots it refers to (in the given order) **must** correspond to a word in the input dictionary.
+```bash
+yarn add @crossword-composer-ts/core
+```
 
-The second type of constraint are *letter constraints*. These constraints ensure that the each slot is assigned to exactly one letter. When the same slot is referenced from multiple word constraints, it means that those words share a letter in that position.
+## Ability
 
-If this all seems abstract, let's look at how this applies to a concrete problem. Here's a simple crossword puzzle along with an equivalent input representation. (The colored cells are just a visual aid, they are not part of the representation.)
+### Build
 
-![A diagram showing the input representation.](images/input_representation.png)
+After `yarn build/npm run build` command, you can see `package-template.[darwin|win32|linux].node` file in project root. This is the native addon built from [lib.rs](./src/lib.rs).
 
-Put into code, the input representaiton looks like this:
+### Test
 
-    [
-      [0, 1, 3, 6, 7, 11],
-      [2, 3, 4, 5],
-      [7, 8, 9, 10]
-    ]
+With [ava](https://github.com/avajs/ava), run `yarn test/npm run test` to testing native addon. You can also switch to another testing framework if you want.
 
-If we passed the solver these constraints along with a standard English dictionary, a solution it might return is:
+### CI
 
-    ['S', 'H', 'D', 'A', 'R', 'K', 'I', 'N', 'G', 'S']
+With GitHub Actions, each commit and pull request will be built and tested automatically in [`node@20`, `@node22`] x [`macOS`, `Linux`, `Windows`] matrix. You will never be afraid of the native addon broken in these platforms.
 
-The location of each letter corresponds to the numbers in the puzzle structure diagram above, and can be reassembled into a solution as shown below.
+### Release
 
-![An example output representation from the solver.](images/output_representation.png)
+Release native package is very difficult in old days. Native packages may ask developers who use it to install `build toolchain` like `gcc/llvm`, `node-gyp` or something more.
 
-*Note that the actual numbers assigned doen't really matter for the purposes of the representation. For example if we swap 5 and 7 everywhere they appear we have an equally valid representation of the puzzle.*
+With `GitHub actions`, we can easily prebuild a `binary` for major platforms. And with `N-API`, we should never be afraid of **ABI Compatible**.
 
-The filler uses a standard backtracking approach: for each word constraint, it arbitrarily picks a word from the dictionary that satisfies the slots already assigned. Whenever there are no words in the dictionary that work, it reverses its most recent word assignments until it gets back to a step where it has more available words to try. It then proceeds from there with a different (but again arbitrary) word choice.
+The other problem is how to deliver prebuild `binary` to users. Downloading it in `postinstall` script is a common way that most packages do it right now. The problem with this solution is it introduced many other packages to download binary that has not been used by `runtime codes`. The other problem is some users may not easily download the binary from `GitHub/CDN` if they are behind a private network (But in most cases, they have a private NPM mirror).
 
-The filler speeds up this process in two ways:
+In this package, we choose a better way to solve this problem. We release different `npm packages` for different platforms. And add it to `optionalDependencies` before releasing the `Major` package to npm.
 
-1. It attempts to pick a good order to solve the word constraints in. The basic idea is that when we are on a dead-end route, we want to know as soon as possible that no solution will work so that we can backtrack without wasting time. Note that once we know the order in which we will solve the word constraints, we also know which slots will be known and which will be unknown by the time we solve it. The heuristic for picking an order is a simple greedy algorithm: first we take the longest word constraint, then we continually take the word constraint with the highest number of slots that overlap with previously picked word constraints (breaking ties by length, preferring the longest).
-2. For each word constraint, we create an in-memory index. This index provides a fast mapping *from* values of the slots that will be assigned by the time we visit that word constraint, *to* all possible values of the unassigned slots in the word constraint that result in a valid (in-dictionary) word. One way to think of these indexes is as a sort of permuted dictionary. If you have an alphabetically-sorted dictionary, and you want to fill in the blanks in the word `sp___`, it's a fast operation. But if you want to fill in the word `_p__n`, it's slow -- you have to scan the whole dictionary! If you are planning to solve a lot of `_#__#` fill-in-the-blanks, as we are, it is worthwhile to create a whole new dictionary where you permute the words so that the known letters appear at the beginning (e.g. `spoon` becomes `pnsoo`). Luckly, once we have pre-determine our order, the blanks for each word *will* always be in the same spot for any given word constraint. So we create one of these indexes for each word constraint.
+`NPM` will choose which native package should download from `registry` automatically. You can see [npm](./npm) dir for details. And you can also run `yarn add @napi-rs/package-template` to see how it works.
 
-Once those tasks are completed, we begin filling. At this point, we can even throw away the dictionary we were given as input, since the indexes we built for each word contain all the vocabulary information we need.
+## Develop requirements
 
-Browser UI
-----------
+- Install the latest `Rust`
+- Install `Node.js@10+` which fully supported `Node-API`
+- Install `yarn@1.x`
 
-The browser UI is a JavaScript tool for designing crossword grids. It imports the solver using WebAssembly and uses it to fill the puzzle.
+## Test in local
 
-The `Solver` class manages the interface between the UI and the auto-filler from the JavaScript side. Filling the crossword is computationally intensive, so we don't want to run it in the main JavaScript thread (which would lock up the UI and prevent modifying the grid while the solver is running). Instead, the `Solver` class manages a [Web Worker](https://developer.mozilla.org/en-US/docs/Web/API/Web_Workers_API/Using_web_workers) which runs the filler in another thread.
+- yarn
+- yarn build
+- yarn test
 
-When the filler is turned on, every subsequent edit to the grid causes the `Solver` to terminate the existing web worker (if one exists), spawn a new one, load the auto-filler as a WebAssembly module, and start filling the new grid. Unfortunately, terminating the entire web worker is the only way to interrupt that thread, so for every change to the grid we incur the overhead of spawning a new instance of the WebAssembly module. Fortunately, WebAssembly is purpose-built for this kind of fast start. In practice, the time to fill a puzzle is dominated by the backtracking process, so the cost of constantly starting new workers is negligible.
+And you will see:
 
-The `Solver` class is also responsible for caching the web worker script, dictionary file, and WebAssembly module binary. Otherwise, network round-trips would need to be made for each of these every time the user changed the grid.
+```bash
+$ ava --verbose
 
-See Also
---------
+  ✔ sync function from native code
+  ✔ sleep function from native code (201ms)
+  ─
 
-- [Qxw](https://www.quinapalus.com/qxw.html) and [Crux](https://www.quinapalus.com/crux.html) are open-source word game creation tools. Although my filler uses a different solving approach (I think?), the constraint specification approach I took was inspired by reading its documentation.
-- [Steven Morse](https://stmorse.github.io/journal/IP-Crossword-puzzles.html) has written about using integer programming to solve crosswords. Although I didn't take this approach, it was a helpful read.
-- [Phil](http://www.keiranking.com/phil/) ([GitHub repo](https://github.com/keiranking/Phil)) is a more fully-featured HTML crossword creator. Its creators also took the approach of running a filler in the browser with WebAssembly. (Thanks to [Steven Sawtelle](https://twitter.com/StevenSawtelle) for the pointer.)
+  2 tests passed
+✨  Done in 1.12s.
+```
+
+## Release package
+
+Ensure you have set your **NPM_TOKEN** in the `GitHub` project setting.
+
+In `Settings -> Secrets`, add **NPM_TOKEN** into it.
+
+When you want to release the package:
+
+```bash
+npm version [<newversion> | major | minor | patch | premajor | preminor | prepatch | prerelease [--preid=<prerelease-id>] | from-git]
+
+git push
+```
+
+GitHub actions will do the rest job for you.
+
+> WARN: Don't run `npm publish` manually.
