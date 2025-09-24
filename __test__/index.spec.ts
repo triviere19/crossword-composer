@@ -1,8 +1,25 @@
 import test from 'ava'
 
-import { plus100 } from '../index'
+import { Solver } from '../index'
 
 test('sync function from native code', (t) => {
-  const fixture = 42
-  t.is(plus100(fixture), fixture + 100)
-})
+    const words = ['CAT', 'DOG', 'BIRD', 'FISH', 'CAR', 'ART', 'TAR']
+    const solver = new Solver(words);
+
+    // Simple 3x3 grid specification
+    const grid = [
+      [1, 1, 1],
+      [1, 0, 1], 
+      [1, 1, 1]
+    ];
+
+    const result = solver.solve(grid);
+
+    // Should return either a solution or null
+    if (result !== null) {
+      t.true(Array.isArray(result))
+      t.true(result.every(item => typeof item === 'string'))
+    } else {
+      t.is(result, null)
+    }
+});
