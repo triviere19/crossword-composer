@@ -210,7 +210,7 @@ jobs:
         uses: actions/download-artifact@v5
         with:
           name: bindings-${{ matrix.settings.target }}
-          path: .
+          path: ./artifacts/
       - name: Move artifacts
         run: yarn artifacts
       - name: List packages
@@ -270,7 +270,7 @@ jobs:
         uses: actions/download-artifact@v5
         with:
           name: bindings-${{ matrix.target }}
-          path: .
+          path: ./artifacts/
       - name: List packages
         run: ls -R .
         shell: bash
@@ -307,7 +307,7 @@ jobs:
         uses: actions/download-artifact@v5
         with:
           name: bindings-wasm32-wasip1-threads
-          path: .
+          path: ./artifacts/
       - name: List packages
         run: ls -R .
         shell: bash
