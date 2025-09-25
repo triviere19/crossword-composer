@@ -321,7 +321,7 @@ jobs:
         with:
           name: bindings-wasm32-wasip1-threads
           path: ./artifacts/
-      - name: Move artifacts
+      - name: Move artifacts 
         run: yarn artifacts
       - name: List packages
         run: ls -R .
